@@ -28,6 +28,5 @@ df
 df.iloc[0] #aq me retornou a primeira linha da minha planilha
 df.iloc[0]["nomes"]
 df.iloc[-1]["idades"]
-
+#o df.loc seria como se nao tivesse, ele é o default, sendo assim o contrario do iloc
 # %%
-
