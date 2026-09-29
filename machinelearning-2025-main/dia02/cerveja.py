@@ -31,4 +31,3 @@ tree.plot_tree(model, feature_names= features,
                class_names= model.classes_,
                filled=True
                )
-
