@@ -1,7 +1,9 @@
 #%%
 import pandas as pd
 from sklearn import tree
-import matplotlib.pyplot
+from sklearn import metrics
+from sklearn import naive_bayes
+import matplotlib.pyplot as plt
 # %%
 df = pd.read_csv("../data/Dados Comunidade (respostas) - dados.csv")
 # %%
@@ -47,13 +49,23 @@ arvore = tree.DecisionTreeClassifier(random_state=42,
                                      min_samples_leaf=5,
                                      )
 arvore.fit(X,y)
+
+naive = naive_bayes.GaussianNB()
+naive.fit(X, y)
 # %%
 arvore_predict = arvore.predict(X)
 arvore_predict
 
-# %%
 #Pessoa feliz é se a p[essoa reamente é feliz e o predict é oq a arvore predict que é
 df_predict = df_analise[['pessoa feliz']]
+df_predict['predict_arvore'] = arvore_predict
+df_predict
+
+
+df_predict =['proba_naive'['pessoa feliz']]
+
+
+
 df_predict['predict_arvore'] = arvore_predict
 df_predict
 # %%
@@ -69,4 +81,35 @@ pd.crosstab(df_predict['pessoa feliz'], df_predict['predict_arvore'])
 #os dois batem
 (df_predict["pessoa feliz"] ==0).sum()
 (df_predict["pessoa feliz"] ==1).sum()
+# %%
+
+df_predict.to_csv("predict.csv", sep=';', index = False)
+
+# %%
+
+acc_arvore = metrics.accuracy_score(df_predict['pessoa feliz'], df_predict['predict_arvore'])
+
+
+precisao_arvore = metrics.precision_score(df_predict["pessoa feliz"], df_predict["pessoa feliz"])
+
+recall_arvore = metrics.recall_score(df_predict["pessoa feliz"], df_predict["pessoa feliz"])
+recall_arvore
+
+especificidade_arvore = metrics.precision_score(df_predict["pessoa feliz"], df_predict["pessoa feliz"])
+
+roc_arvore = metrics.roc_curve(df_predict["pessoa feliz"], df_predict["pessoa feliz"])
+
+auc_arvore = metrics.roc_auc_score(df_predict["pessoa feliz"], df_predict["pessoa feliz"])
+# %%
+
+#deu errado tem que arrumar
+plt.figure(dpi=400)
+
+plt.plot(roc_arvore[0], roc_arvore[1], 'o')
+plt.grid(True)
+plt.title("ROC CURVE")
+plt.xlabel("1 - Especificidade")
+plt.ylabel("Recall")
+
+plt.legend([f"Árvore : {auc_arvore:.2f}"])
 # %%
