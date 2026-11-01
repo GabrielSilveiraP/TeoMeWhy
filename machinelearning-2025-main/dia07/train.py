@@ -4,9 +4,9 @@ import pandas as pd
 from sklearn import model_selection
 from sklearn import tree
 from sklearn import linear_model
-from sklearn import metrics
+from sklearn import metrics, pipeline
 import matplotlib.pyplot as plt
-from feature_engine import discretisation
+from feature_engine import discretisation, encoding
 
 df = pd.read_csv("../data/abt_churn.csv")
 df.head()
@@ -23,8 +23,6 @@ oot
 #lembrar q esse é o resto e ainda vmaos separar em treino e teste
 df_train = df[df['dtRef']<df['dtRef'].max()].copy()
 df_train
-# %%
-df_train.head()
 # %%
 #da segunda coluna até a penultima, porq a ultima é a flag churn, que é oq queremos prever
 #variaveis
@@ -86,53 +84,70 @@ feature_importances[feature_importances['acumulada'] < 0.96]
 
 best_features = (feature_importances[feature_importances['acumulada'] < 0.96]["index"].tolist())
 best_features
-# %%
-#modify
-
-tree_discredization = discretisation.DecisionTreeDiscretiser(
-    variables= best_features,
+#%%
+# --- CAMINHO B: desativado, passo manual, segue para o (Caminho A) da pipe q eu to usando abaixo ---
+# tree_discredization = discretisation.DecisionTreeDiscretiser(
+#     variables=best_features,
+#     regression=False,
+#     bin_output="bin_number",
+#     cv=3)
+# onehot = encoding.OneHotEncoder(variables=best_features, ignore_format=True)
+# reg = linear_model.LogisticRegression(penalty=None, random_state=42, max_iter=1000000)
+#
+# model_pipeline = pipeline.Pipeline(steps=[
+#     ("Discretizar", tree_discredization),
+#     ("Onehot", onehot),
+#     ("Model", reg)
+# ])
+# model_pipeline.fit(X_train[best_features], y_train)
+#%%
+#arvorenova = tree.DecisionTreeClassifier(random_state=42)
+#arvorenova.fit(X_train_transform, y_train)
+#(pd.Series(arvorenova.feature_importances_, index=X_train_transform.columns).sort_values(ascending=False))
+#%%
+#As linhas abaixo poderiam ser inseridas abaixo de modify, decidi deixar por aqui para mostrar a diferença dos metodos, um que é mais espaçado e esse q é fazer um pipe
+#Ou seja, fazer com que o x_trasnform seja discretizado, onehot e o modelo fitado numa só
+# PIPELINE
+tree_discretization = discretisation.DecisionTreeDiscretiser(
+    variables=best_features,
     regression=False,
-    bin_output="bin_number",
-    cv=3)
-tree_discredization.fit(X_train[best_features], y_train) 
-# %%
-X_train.head()
-# %%
-X_train_transform = tree_discredization.transform(X_train[best_features])
-X_train_transform
-# %%
-#Tamo no model do semma, realmente utilizar os modelos
-
+    bin_output='bin_number',
+    cv=3,
+)
+onehot = encoding.OneHotEncoder(variables=best_features, ignore_format=True)
 reg = linear_model.LogisticRegression(penalty=None, random_state=42, max_iter=1000000)
-reg.fit(X_train_transform, y_train)
+
+model_pipeline = pipeline.Pipeline(steps=[
+    ("Discretizar", tree_discredization),
+    ("Onehot", onehot),
+    ("Model", reg),
+])
+
+model_pipeline.fit(X_train[best_features], y_train)
+
+
 # %%
+#No meu cdoigo eu precisei encirporar o x_trains[best_features] por conta que ele n tava aceitando o X_train_transform
+y_train_predict = model_pipeline.predict(X_train[best_features])
+y_train_proba = model_pipeline.predict_proba(X_train[best_features])[:, 1]
 
-y_train_predict = reg.predict(X_train_transform)
-y_train_proba = reg.predict_proba(X_train_transform)[:,1]
-
-
-acc_train = metrics.accuracy_score(y_train,y_train_predict)
+acc_train = metrics.accuracy_score(y_train, y_train_predict)
 auc_train = metrics.roc_auc_score(y_train, y_train_proba)
 print("Acurácia Treino", acc_train)
 print("Auc Treino", auc_train)
 
-
-#Ate agr a gente trabalhou com o treino
-X_test_transform = tree_discredization.transform(X_test[best_features])
-
-y_test_predict = reg.predict(X_test_transform)
-y_test_proba = reg.predict_proba(X_test_transform)[:,1]
+#%%
+y_test_predict = model_pipeline.predict(X_test)
+y_test_proba = model_pipeline.predict_proba(X_test)[:,1]
 
 
 acc_test = metrics.accuracy_score(y_test,y_test_predict)
 auc_test = metrics.roc_auc_score(y_test, y_test_proba)
 print("Acurácia Teste", acc_test)
 print("Auc Teste", auc_test)
-
-oot_transform = tree_discredization.transform(oot[best_features])
-
-y_oot_predict = reg.predict(oot_transform)
-y_oot_proba = reg.predict_proba(oot_transform)[:,1]
+#%%
+y_oot_predict = model_pipeline.predict(oot[best_features])
+y_oot_proba = model_pipeline.predict_proba(oot[best_features])[:,1]
 
 
 acc_oot = metrics.accuracy_score(oot[target],y_oot_predict)
