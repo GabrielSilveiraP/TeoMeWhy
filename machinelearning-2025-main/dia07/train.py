@@ -1,9 +1,10 @@
 #%%
 
 import pandas as pd
-from sklearn import model_selection
+import mlflow
+from sklearn import model_selection, naive_bayes
 from sklearn import tree
-from sklearn import linear_model
+from sklearn import linear_model, ensemble
 from sklearn import metrics, pipeline
 import matplotlib.pyplot as plt
 from feature_engine import discretisation, encoding
@@ -108,51 +109,92 @@ best_features
 #As linhas abaixo poderiam ser inseridas abaixo de modify, decidi deixar por aqui para mostrar a diferença dos metodos, um que é mais espaçado e esse q é fazer um pipe
 #Ou seja, fazer com que o x_trasnform seja discretizado, onehot e o modelo fitado numa só
 # PIPELINE
-tree_discretization = discretisation.DecisionTreeDiscretiser(
+tree_discretisation = discretisation.DecisionTreeDiscretiser(
     variables=best_features,
     regression=False,
     bin_output='bin_number',
     cv=3,
 )
 onehot = encoding.OneHotEncoder(variables=best_features, ignore_format=True)
-reg = linear_model.LogisticRegression(penalty=None, random_state=42, max_iter=1000000)
-
+#reg = linear_model.LogisticRegression(penalty=None, random_state=42, max_iter=1000000)
+#acima temos regressao e abaixo temos outro modelo, que é o Naive bayes
+#model = naive_bayes.BernoulliNB() #não é melhor que o outro modelo
+#modelos de ensamble -> random forest é um deles, que soma a probabilidade
+# model = ensemble.RandomForestClassifier(random_state=42,
+#                                         min_samples_leaf= 20,
+#                                         n_jobs=-1,
+#                                         n_estimators=500,
+                                        
+#                                         )
+model = ensemble.AdaBoostClassifier(random_state=42,
+                                    n_estimators=500,
+                                    learning_rate=0.99
+                                    )
+#Quanto mais perto de 1 o learning rate mais perto de overfita
+#Gradient boost olha para os residuos-erros, para reduzir esses ruidos
 model_pipeline = pipeline.Pipeline(steps=[
-    ("Discretizar", tree_discredization),
+    ("Discretizar", tree_discretisation),
     ("Onehot", onehot),
-    ("Model", reg),
+    ("Model", model),
 ])
 
-model_pipeline.fit(X_train[best_features], y_train)
+#mlflow de cria
+mlflow.set_tracking_uri("http://127.0.0.1:5000")
+mlflow.set_experiment(experiment_name="churn_dos_guri")
+with mlflow.start_run(run_name=model.__str__()):
+    mlflow.sklearn.autolog()
+    model_pipeline.fit(X_train[best_features], y_train)
 
 
+
+    #No meu cdoigo eu precisei encirporar o x_trains[best_features] por conta que ele n tava aceitando o X_train_transform
+    y_train_predict = model_pipeline.predict(X_train[best_features])
+    y_train_proba = model_pipeline.predict_proba(X_train[best_features])[:, 1]
+
+    acc_train = metrics.accuracy_score(y_train, y_train_predict)
+    auc_train = metrics.roc_auc_score(y_train, y_train_proba)
+    roc_train = metrics.roc_curve(y_train, y_train_proba)
+    print("Acurácia Treino", acc_train)
+    print("Auc Treino", auc_train)
+
+    y_test_predict = model_pipeline.predict(X_test[best_features])
+    y_test_proba = model_pipeline.predict_proba(X_test[best_features])[:,1]
+
+
+    acc_test = metrics.accuracy_score(y_test,y_test_predict)
+    auc_test = metrics.roc_auc_score(y_test, y_test_proba)
+    roc_test = metrics.roc_curve(y_test, y_test_proba)
+    print("Acurácia Teste", acc_test)
+    print("Auc Teste", auc_test)
+    y_oot_predict = model_pipeline.predict(oot[best_features])
+    y_oot_proba = model_pipeline.predict_proba(oot[best_features])[:,1]
+
+
+    acc_oot = metrics.accuracy_score(oot[target],y_oot_predict)
+    auc_oot = metrics.roc_auc_score(oot[target], y_oot_proba)
+    roc_oot = metrics.roc_curve(oot[target], y_oot_proba)
+    print("Acurácia oot", acc_oot)
+    print("Auc oot", auc_oot)
+
+
+    mlflow.log_metrics({ 
+    "acc_train" :acc_train,
+    "acc_test" :    acc_test,
+    "auc_test" :    auc_test,
+    "auc_train":    auc_train,
+    "acc_oot" :    acc_oot,
+    "auc_oot" :    auc_oot,
+
+    })
 # %%
-#No meu cdoigo eu precisei encirporar o x_trains[best_features] por conta que ele n tava aceitando o X_train_transform
-y_train_predict = model_pipeline.predict(X_train[best_features])
-y_train_proba = model_pipeline.predict_proba(X_train[best_features])[:, 1]
-
-acc_train = metrics.accuracy_score(y_train, y_train_predict)
-auc_train = metrics.roc_auc_score(y_train, y_train_proba)
-print("Acurácia Treino", acc_train)
-print("Auc Treino", auc_train)
-
-#%%
-y_test_predict = model_pipeline.predict(X_test)
-y_test_proba = model_pipeline.predict_proba(X_test)[:,1]
-
-
-acc_test = metrics.accuracy_score(y_test,y_test_predict)
-auc_test = metrics.roc_auc_score(y_test, y_test_proba)
-print("Acurácia Teste", acc_test)
-print("Auc Teste", auc_test)
-#%%
-y_oot_predict = model_pipeline.predict(oot[best_features])
-y_oot_proba = model_pipeline.predict_proba(oot[best_features])[:,1]
-
-
-acc_oot = metrics.accuracy_score(oot[target],y_oot_predict)
-auc_oot = metrics.roc_auc_score(oot[target], y_oot_proba)
-print("Acurácia oot", acc_oot)
-print("Auc oot", auc_oot)
-
+plt.plot(roc_train[0], roc_train[1])
+plt.plot(roc_test[0], roc_test[1])
+plt.plot(roc_oot[0], roc_oot[1])
+plt.grid(True)
+plt.title("Curva ROC")
+plt.legend([
+    f"Treino: {100*auc_train:.2f}",
+    f"Test: {100*auc_test:.2f}",
+    f"Out of time: {100*auc_oot:.2f}"
+])
 # %%
