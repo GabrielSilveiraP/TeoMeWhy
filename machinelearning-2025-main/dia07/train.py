@@ -120,22 +120,35 @@ onehot = encoding.OneHotEncoder(variables=best_features, ignore_format=True)
 #acima temos regressao e abaixo temos outro modelo, que é o Naive bayes
 #model = naive_bayes.BernoulliNB() #não é melhor que o outro modelo
 #modelos de ensamble -> random forest é um deles, que soma a probabilidade
-# model = ensemble.RandomForestClassifier(random_state=42,
-#                                         min_samples_leaf= 20,
-#                                         n_jobs=-1,
-#                                         n_estimators=500,
-                                        
-#                                         )
-model = ensemble.AdaBoostClassifier(random_state=42,
-                                    n_estimators=500,
-                                    learning_rate=0.99
-                                    )
+#testei todos eses modelos e o melhor foi o rf
+model = ensemble.RandomForestClassifier(random_state=42,
+                                         n_jobs=2,
+                                         )
+#model = ensemble.AdaBoostClassifier(random_state=42,
+ #                                   n_estimators=500,
+#                                    learning_rate=0.99
+#                                    )
 #Quanto mais perto de 1 o learning rate mais perto de overfita
 #Gradient boost olha para os residuos-erros, para reduzir esses ruidos
+
+
+
+params = {
+        "min_samples_leaf":[15,20,25,30,50],
+        "n_estimators" : [100,200,500,1000],
+        "criterion" : ["gini", "entropy", "log_loss"],       
+}
+
+grid = model_selection.GridSearchCV(model, 
+                                    params,
+                                    cv=3,
+                                    scoring="roc_auc",
+                                    verbose=4)
+
 model_pipeline = pipeline.Pipeline(steps=[
     ("Discretizar", tree_discretisation),
     ("Onehot", onehot),
-    ("Model", model),
+    ("Grid", grid),
 ])
 
 #mlflow de cria
@@ -143,13 +156,13 @@ mlflow.set_tracking_uri("http://127.0.0.1:5000")
 mlflow.set_experiment(experiment_name="churn_dos_guri")
 with mlflow.start_run(run_name=model.__str__()):
     mlflow.sklearn.autolog()
-    model_pipeline.fit(X_train[best_features], y_train)
+    grid.fit(X_train[best_features], y_train)
 
 
 
     #No meu cdoigo eu precisei encirporar o x_trains[best_features] por conta que ele n tava aceitando o X_train_transform
-    y_train_predict = model_pipeline.predict(X_train[best_features])
-    y_train_proba = model_pipeline.predict_proba(X_train[best_features])[:, 1]
+    y_train_predict = grid.predict(X_train[best_features])
+    y_train_proba = grid.predict_proba(X_train[best_features])[:, 1]
 
     acc_train = metrics.accuracy_score(y_train, y_train_predict)
     auc_train = metrics.roc_auc_score(y_train, y_train_proba)
@@ -157,8 +170,8 @@ with mlflow.start_run(run_name=model.__str__()):
     print("Acurácia Treino", acc_train)
     print("Auc Treino", auc_train)
 
-    y_test_predict = model_pipeline.predict(X_test[best_features])
-    y_test_proba = model_pipeline.predict_proba(X_test[best_features])[:,1]
+    y_test_predict = grid.predict(X_test[best_features])
+    y_test_proba = grid.predict_proba(X_test[best_features])[:,1]
 
 
     acc_test = metrics.accuracy_score(y_test,y_test_predict)
@@ -166,8 +179,8 @@ with mlflow.start_run(run_name=model.__str__()):
     roc_test = metrics.roc_curve(y_test, y_test_proba)
     print("Acurácia Teste", acc_test)
     print("Auc Teste", auc_test)
-    y_oot_predict = model_pipeline.predict(oot[best_features])
-    y_oot_proba = model_pipeline.predict_proba(oot[best_features])[:,1]
+    y_oot_predict = grid.predict(oot[best_features])
+    y_oot_proba = grid.predict_proba(oot[best_features])[:,1]
 
 
     acc_oot = metrics.accuracy_score(oot[target],y_oot_predict)
