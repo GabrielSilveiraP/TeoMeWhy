@@ -156,7 +156,7 @@ mlflow.set_tracking_uri("http://127.0.0.1:5000")
 mlflow.set_experiment(experiment_name="churn_dos_guri")
 with mlflow.start_run(run_name=model.__str__()):
     mlflow.sklearn.autolog()
-    grid.fit(X_train[best_features], y_train)
+    model_pipeline.fit(X_train[best_features], y_train)
 
 
 
@@ -210,4 +210,16 @@ plt.legend([
     f"Test: {100*auc_test:.2f}",
     f"Out of time: {100*auc_oot:.2f}"
 ])
+# %%
+#serialização, binárizar o estado do objeto-> porq dai se movermos ele é ais fácil trazer em python. 
+
+# model_df = pd.Series( {
+    
+#     "model":model_pipeline,
+#     "features": best_features
+# })
+
+# model_df.to_pickle("model.pkl")
+
+#pelo meu modelo estar salvo no mlflow n preciso disso, de salvar e dps nem de importar
 # %%
